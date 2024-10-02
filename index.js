@@ -111,29 +111,12 @@ async function getOpenAIEmbeddings(text, model = "text-embedding-ada-002") {
   return response.data[0].embedding;
 }
 
-// Helper function to load the medcodes.json file
-const loadMedCodes = () => {
-  const filePath = path.join(__dirname, 'medcodes.json');
-  const data = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(data);
-};
-
 async function queryCodes(queryText, topK) {
-  // Step 1: Load the medical codes from the JSON file
-  const medCodes = loadMedCodes();
-
   const queryEmbedding = await getOpenAIEmbeddings(queryText);
   const queryResults = await index.query({ vector: queryEmbedding, topK, includeMetadata: true });
-
-  // Step 4: Map the results to return relevant information: code (from the id) and description (from the JSON)
-  return queryResults.matches.map(match => {
-    const code = match.id;
-    const description = medCodes[code] || "Description not found"; // Fallback if the code is not found in the JSON
-    return { code, description };
-  });
+  return queryResults.matches.map(match => [match.id, match.score]);
 }
 
-// POST endpoint to get medical codes
 app.post('/get_medical_codes', async (req, res) => {
   const { diagnosis } = req.body;
   console.log(diagnosis);
@@ -142,15 +125,10 @@ app.post('/get_medical_codes', async (req, res) => {
     return res.status(400).json({ error: "No diagnosis text provided" });
   }
 
-  try {
-    const topK = 10;  // Number of top results to return
-    const codes = await queryCodes(diagnosis, topK);
+  const topK = 10;
+  const codes = await queryCodes(diagnosis, topK);
 
-    res.json({ codes });
-  } catch (error) {
-    console.error("Error fetching medical codes:", error);
-    res.status(500).json({ error: "Failed to retrieve medical codes" });
-  }
+  res.json({ codes });
 });
 
 function sendSecureEmail(subject, body, sender, password, toEmail) {
@@ -198,4 +176,4 @@ app.get("/", (req, res) => {
 });
 
 // Export the Express app as a Cloud Function
-exports.mainFunction = functions.http('mainFunction', app);
+exports.mainFunction = app;
