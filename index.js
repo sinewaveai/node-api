@@ -5,6 +5,10 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 const nodemailer = require('nodemailer');
 const functions = require('@google-cloud/functions-framework');
 const cors = require('cors');
+const fs = require('fs');
+
+
+const medcodes = JSON.parse(fs.readFileSync('medcode.json', 'utf-8')); // Load medcode.json
 
 const app = express();
 app.use(express.json());
@@ -128,7 +132,15 @@ app.post('/get_medical_codes', async (req, res) => {
   const topK = 10;
   const codes = await queryCodes(diagnosis, topK);
 
-  res.json({ codes });
+  // Map the predicted codes to their descriptions
+  const results = codes.map(([code]) => {
+    return {
+      code,
+      description: medcodes[code] || "Description not available" // Return description if exists
+    };
+  });
+
+  res.json({ codes: results });
 });
 
 function sendSecureEmail(subject, body, sender, password, toEmail) {
